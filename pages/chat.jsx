@@ -1,19 +1,41 @@
 import { Box, Text, TextField, Image, Button } from "@skynexui/components";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { FiSend, FiTrash2 } from "react-icons/fi";
 import appConfig from "../config.json";
+import { createClient } from "@supabase/supabase-js";
+
+import params from "../params.json";
+const SUPABASE_ANON_KEY = params.SUPABASE_ANON_KEY;
+const SUPABASE_URL = params.SUPABASE_URL;
+
+const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 export default function ChatPage() {
   const [message, setMessage] = useState("");
   const [messageList, setMessageList] = useState([]);
 
+  useEffect(() => {
+    supabaseClient
+      .from("messages")
+      .select("*")
+      .order("id", { ascending: false })
+      .then(({ data }) => {
+        setMessageList(data);
+      });
+  }, []);
+
   function handleNewMessage(newMessage) {
     const message = {
-      id: messageList.length + 1,
       text: newMessage,
-      from: "alguem",
+      from: "gcarniel",
     };
-    setMessageList([message, ...messageList]);
+
+    supabaseClient
+      .from("messages")
+      .insert([message])
+      .then(({ data }) => {
+        setMessageList([data[0], ...messageList]);
+      });
     setMessage("");
   }
 
@@ -149,10 +171,17 @@ function Header() {
 
 function MessageList(props) {
   function deleteMessage(messageId) {
-    const newMessages = props.messageList.filter(
-      (message) => message.id !== messageId
-    );
-    props.setMessageList(newMessages);
+    supabaseClient
+      .from("messages")
+      .delete()
+      .match({ id: messageId })
+      .then(() => {
+        const newMessages = props.messageList.filter(
+          (message) => message.id !== messageId
+        );
+        props.setMessageList(newMessages);
+      })
+      .catch(({ error }) => console.log(error));
   }
 
   return (
@@ -201,7 +230,7 @@ function MessageList(props) {
                     display: "inline-block",
                     marginRight: "8px",
                   }}
-                  src={`https://github.com/gcarniel.png`}
+                  src={`https://github.com/${message.from}.png`}
                 />
                 <Text tag="strong">{message.from}</Text>
                 <Text
