@@ -5,12 +5,25 @@ import appConfig from "../config.json";
 import { createClient } from "@supabase/supabase-js";
 
 import params from "../params.json";
+import { ButtonSendSticker } from "../src/components/ButtonSendSticker";
+import { useRouter } from "next/router";
+
 const SUPABASE_ANON_KEY = params.SUPABASE_ANON_KEY;
 const SUPABASE_URL = params.SUPABASE_URL;
 
 const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+function onInsertNewMessage(addMessage) {
+  return supabaseClient
+    .from("messages")
+    .on("INSERT", (response) => addMessage(response.new))
+    .subscribe();
+}
+
 export default function ChatPage() {
+  const router = useRouter();
+  const username = router.query.username;
+
   const [message, setMessage] = useState("");
   const [messageList, setMessageList] = useState([]);
 
@@ -22,20 +35,28 @@ export default function ChatPage() {
       .then(({ data }) => {
         setMessageList(data);
       });
+
+    const subscription = onInsertNewMessage((newMessage) => {
+      setMessageList((currentMessageList) => {
+        return [newMessage, ...currentMessageList];
+      });
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   function handleNewMessage(newMessage) {
     const message = {
       text: newMessage,
-      from: "gcarniel",
+      from: username,
     };
 
     supabaseClient
       .from("messages")
       .insert([message])
-      .then(({ data }) => {
-        setMessageList([data[0], ...messageList]);
-      });
+      .then(({ data }) => {});
     setMessage("");
   }
 
@@ -121,6 +142,8 @@ export default function ChatPage() {
               styleSheet={{
                 position: "relative",
                 display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
                 flex: 1,
                 height: "80%",
                 backgroundColor: appConfig.theme.colors.neutrals[600],
@@ -128,13 +151,20 @@ export default function ChatPage() {
               }}
             >
               <FiSend
+                size={28}
                 style={{
                   cursor: `${message.length > 0 ? "pointer" : "not-allowed"}`,
+                  marginRight: "2px",
                 }}
                 onClick={() => {
                   if (message) {
                     handleNewMessage(message);
                   }
+                }}
+              />
+              <ButtonSendSticker
+                onStickerClick={(sticker) => {
+                  handleNewMessage(`:sticker: ${sticker}`);
                 }}
               />
             </Box>
@@ -254,7 +284,11 @@ function MessageList(props) {
                 />
               </Text>
             </Box>
-            {message.text}
+            {message.text.startsWith(":sticker:") ? (
+              <Image src={message.text.replace(":sticker:", "")} />
+            ) : (
+              message.text
+            )}
           </Text>
         );
       })}
